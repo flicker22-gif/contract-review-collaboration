@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+python-docx
+pymupdf
+python-multipart

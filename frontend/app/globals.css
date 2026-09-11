@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  color: #171717;
+  background: #f9fafb;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* 高亮被点击/定位时的闪烁动画 */
+@keyframes highlight-flash {
+  0%,
+  100% {
+    outline-color: transparent;
+  }
+  50% {
+    outline-color: #f59e0b;
+  }
+}
+
+.highlight-flash {
+  outline: 2px solid #f59e0b;
+  animation: highlight-flash 0.8s ease-in-out 2;
+}
