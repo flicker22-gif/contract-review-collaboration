@@ -1,4 +1,3 @@
-import shutil
 import uuid
 from pathlib import Path
 
@@ -6,6 +5,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from ..config import get_settings
 from ..database import get_db
 from ..diffing import diff_paragraphs
 from ..models import Annotation, Document, Paragraph
@@ -19,11 +19,9 @@ from ..schemas import (
     DocumentOut,
     VersionOut,
 )
+from ..storage import get_storage
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
-
-STORAGE_DIR = Path(__file__).resolve().parent.parent.parent / "storage"
-STORAGE_DIR.mkdir(exist_ok=True)
 
 ALLOWED_TYPES = {
     ".docx": "docx",
@@ -32,7 +30,7 @@ ALLOWED_TYPES = {
 
 
 @router.post("/", response_model=DocumentOut, status_code=201)
-def upload_document(
+async def upload_document(
     file: UploadFile = File(...),
     base_document_id: int | None = Form(default=None),
     db: Session = Depends(get_db),
@@ -48,22 +46,27 @@ def upload_document(
         if not base:
             raise HTTPException(status_code=404, detail="基准版本不存在")
 
-    file_type = ALLOWED_TYPES[suffix]
-    storage_name = f"{uuid.uuid4().hex}{suffix}"
-    storage_path = STORAGE_DIR / storage_name
+    settings = get_settings()
+    data = await file.read()
+    if len(data) > settings.max_upload_mb * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail=f"文件超过大小限制（{settings.max_upload_mb}MB）",
+        )
 
-    with storage_path.open("wb") as f:
-        shutil.copyfileobj(file.file, f)
+    file_type = ALLOWED_TYPES[suffix]
+    storage = get_storage()
+    storage_key = f"{uuid.uuid4().hex}{suffix}"
 
     try:
-        paragraphs = parse_document(storage_path, file_type)
+        paragraphs = parse_document(data, file_type)
     except Exception as exc:
-        storage_path.unlink(missing_ok=True)
         raise HTTPException(status_code=422, detail=f"文件解析失败: {exc}")
 
     if not paragraphs:
-        storage_path.unlink(missing_ok=True)
         raise HTTPException(status_code=422, detail="未能从文件中提取到文本内容")
+
+    storage.save(storage_key, data)
 
     if base is not None:
         latest = (
@@ -78,9 +81,9 @@ def upload_document(
         version_number = 1
 
     document = Document(
-        filename=file.filename or storage_name,
+        filename=file.filename or storage_key,
         file_type=file_type,
-        storage_path=str(storage_path),
+        storage_path=storage_key,  # 只存相对 key，绝对位置由存储层按配置解析
         group_id=group_id,
         version_number=version_number,
     )
@@ -90,7 +93,12 @@ def upload_document(
     for idx, text in enumerate(paragraphs):
         db.add(Paragraph(document_id=document.id, idx=idx, text=text))
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        storage.delete(storage_key)  # 库没写成就把文件清掉，保持两边一致
+        raise
     db.refresh(document)
     return document
 
@@ -238,6 +246,6 @@ def delete_document(document_id: int, db: Session = Depends(get_db)):
     document = db.get(Document, document_id)
     if not document:
         raise HTTPException(status_code=404, detail="文档不存在")
-    Path(document.storage_path).unlink(missing_ok=True)
+    get_storage().delete(document.storage_path)
     db.delete(document)
     db.commit()

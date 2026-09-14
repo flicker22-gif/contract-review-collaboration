@@ -1,13 +1,17 @@
-"""把上传的 docx / pdf 解析成有序段落列表，供前端渲染和批注锚定。"""
+"""把上传的 docx / pdf 解析成有序段落列表，供前端渲染和批注锚定。
+
+输入为文件字节（而非路径），与存储后端解耦：本地磁盘、对象存储
+取回的字节走同一条解析路径。
+"""
+import io
 import re
-from pathlib import Path
 from typing import List
 
 
-def parse_docx(path: Path) -> List[str]:
+def parse_docx(data: bytes) -> List[str]:
     from docx import Document as DocxDocument
 
-    doc = DocxDocument(str(path))
+    doc = DocxDocument(io.BytesIO(data))
     paragraphs: List[str] = []
 
     for para in doc.paragraphs:
@@ -25,11 +29,11 @@ def parse_docx(path: Path) -> List[str]:
     return paragraphs
 
 
-def parse_pdf(path: Path) -> List[str]:
+def parse_pdf(data: bytes) -> List[str]:
     import fitz  # PyMuPDF
 
     paragraphs: List[str] = []
-    with fitz.open(str(path)) as doc:
+    with fitz.open(stream=data, filetype="pdf") as doc:
         for page in doc:
             for block in page.get_text("blocks"):
                 # block: (x0, y0, x1, y1, text, block_no, block_type)
@@ -41,9 +45,9 @@ def parse_pdf(path: Path) -> List[str]:
     return paragraphs
 
 
-def parse_document(path: Path, file_type: str) -> List[str]:
+def parse_document(data: bytes, file_type: str) -> List[str]:
     if file_type == "docx":
-        return parse_docx(path)
+        return parse_docx(data)
     if file_type == "pdf":
-        return parse_pdf(path)
+        return parse_pdf(data)
     raise ValueError(f"不支持的文件类型: {file_type}")
