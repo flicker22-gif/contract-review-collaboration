@@ -46,14 +46,24 @@ npm run dev -- --port 3200
 4. 右侧批注面板逐条回复讨论，可按「全部 / 待处理 / 已解决」筛选
 5. 点击批注卡片 ↔ 点击高亮，两侧互相滚动定位
 6. 讨论完毕后点「标记已解决」
+7. **合同改版后**，在审查页点「＋ 上传新版本」（自动归入同一版本组、版本号 +1），上传完成自动跳转版本对比页；也可在首页合同卡片点「版本对比」
+8. 对比页支持任选同组两个版本，按段落展示新增（绿）/ 删除（红）/ 修改（旧红新绿上下对照），修改段内逐字高亮增删内容；可勾选「仅看变动条款」快速定位，并提供新增/删除/修改段落数与字符数统计
+
+## 版本对比（diff）
+
+- 同一份合同的多次上传通过 `group_id` 归组，`version_number` 从 1 递增；旧库启动时自动迁移（旧文档各自成组）
+- 段落级对齐基于 `difflib.SequenceMatcher`；`replace` 块内按文本相似度（≥0.45）贪心配对为「修改段」，未配对的记为整段新增 / 删除
+- 修改段内做字符级 token diff（英文按单词、中文按字），前端用绿色背景标记新增、红色背景+删除线标记删除
 
 ## API 一览
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/documents/` | 上传合同（multipart），自动解析段落 |
-| GET | `/api/documents/` | 合同列表（含批注统计） |
+| POST | `/api/documents/` | 上传合同（multipart），自动解析段落；表单可带 `base_document_id` 作为某合同的新版本 |
+| GET | `/api/documents/` | 合同列表（含批注统计、版本号与版本组） |
 | GET | `/api/documents/{id}` | 合同详情 + 段落 |
+| GET | `/api/documents/{id}/versions` | 同版本组内的全部版本（含各版批注统计） |
+| GET | `/api/documents/{id}/diff?against={id}` | 当前版本（new）与指定版本（old）的结构化 diff；不传 `against` 默认上一版 |
 | GET | `/api/documents/{id}/annotations` | 批注列表（嵌套回复） |
 | POST | `/api/documents/{id}/annotations` | 创建批注（段落偏移锚定） |
 | PATCH | `/api/annotations/{id}` | 切换待处理/已解决 |

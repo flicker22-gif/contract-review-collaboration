@@ -13,6 +13,9 @@ class Document(Base):
     filename = Column(String(255), nullable=False)
     file_type = Column(String(10), nullable=False)  # docx | pdf
     storage_path = Column(String(512), nullable=False)
+    # 同一合同的多个版本归为一个 group；独立上传的文档自成一组
+    group_id = Column(String(32), nullable=True, index=True)
+    version_number = Column(Integer, nullable=False, default=1)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     paragraphs = relationship(

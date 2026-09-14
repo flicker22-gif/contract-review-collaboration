@@ -77,6 +77,8 @@ class DocumentOut(BaseModel):
     id: int
     filename: str
     file_type: str
+    group_id: str | None = None
+    version_number: int = 1
     created_at: datetime
 
     class Config:
@@ -90,3 +92,57 @@ class DocumentListItem(DocumentOut):
 
 class DocumentDetail(DocumentOut):
     paragraphs: List[ParagraphOut] = []
+
+
+# ---------- Version / Diff ----------
+
+class VersionOut(BaseModel):
+    id: int
+    version_number: int
+    filename: str
+    file_type: str
+    created_at: datetime
+    annotation_count: int
+    open_count: int
+
+    class Config:
+        from_attributes = True
+
+
+class DiffToken(BaseModel):
+    op: Literal["equal", "insert", "delete"]
+    v: str
+
+
+class DiffRow(BaseModel):
+    type: Literal["equal", "modified", "deleted", "added"]
+    old_idx: int | None
+    new_idx: int | None
+    text: str | None = None
+    old_text: str | None = None
+    new_text: str | None = None
+    old_tokens: List[DiffToken] = []
+    new_tokens: List[DiffToken] = []
+
+
+class DiffStats(BaseModel):
+    added: int
+    deleted: int
+    modified: int
+    unchanged: int
+    added_chars: int
+    deleted_chars: int
+
+
+class DiffVersionInfo(BaseModel):
+    id: int
+    version_number: int
+    filename: str
+    created_at: datetime
+
+
+class DiffResponse(BaseModel):
+    old: DiffVersionInfo
+    new: DiffVersionInfo
+    rows: List[DiffRow]
+    stats: DiffStats

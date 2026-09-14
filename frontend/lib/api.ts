@@ -34,6 +34,8 @@ export interface DocumentListItem {
   id: number;
   filename: string;
   file_type: string;
+  group_id: string | null;
+  version_number: number;
   created_at: string;
   annotation_count: number;
   open_count: number;
@@ -43,8 +45,63 @@ export interface DocumentDetail {
   id: number;
   filename: string;
   file_type: string;
+  group_id: string | null;
+  version_number: number;
   created_at: string;
   paragraphs: Paragraph[];
+}
+
+export interface VersionInfo {
+  id: number;
+  version_number: number;
+  filename: string;
+  file_type: string;
+  created_at: string;
+  annotation_count: number;
+  open_count: number;
+}
+
+export type DiffOp = "equal" | "insert" | "delete";
+
+export interface DiffToken {
+  op: DiffOp;
+  v: string;
+}
+
+export type DiffRowType = "equal" | "modified" | "deleted" | "added";
+
+export interface DiffRow {
+  type: DiffRowType;
+  old_idx: number | null;
+  new_idx: number | null;
+  text?: string | null;
+  old_text?: string | null;
+  new_text?: string | null;
+  old_tokens: DiffToken[];
+  new_tokens: DiffToken[];
+}
+
+export interface DiffStats {
+  added: number;
+  deleted: number;
+  modified: number;
+  unchanged: number;
+  added_chars: number;
+  deleted_chars: number;
+}
+
+export interface DiffVersionMeta {
+  id: number;
+  version_number: number;
+  filename: string;
+  created_at: string;
+}
+
+export interface DiffResponse {
+  old: DiffVersionMeta;
+  new: DiffVersionMeta;
+  rows: DiffRow[];
+  stats: DiffStats;
 }
 
 export type AuthorRole = "legal" | "business";
@@ -69,10 +126,28 @@ export function fetchDocuments(): Promise<DocumentListItem[]> {
   return request("/api/documents/");
 }
 
-export function uploadDocument(file: File): Promise<DocumentDetail> {
+export function uploadDocument(
+  file: File,
+  baseDocumentId?: number
+): Promise<DocumentDetail> {
   const form = new FormData();
   form.append("file", file);
+  if (baseDocumentId !== undefined) {
+    form.append("base_document_id", String(baseDocumentId));
+  }
   return request("/api/documents/", { method: "POST", body: form });
+}
+
+export function fetchVersions(documentId: number): Promise<VersionInfo[]> {
+  return request(`/api/documents/${documentId}/versions`);
+}
+
+export function fetchDiff(
+  newDocumentId: number,
+  againstId?: number
+): Promise<DiffResponse> {
+  const qs = againstId !== undefined ? `?against=${againstId}` : "";
+  return request(`/api/documents/${newDocumentId}/diff${qs}`);
 }
 
 export function fetchDocument(id: number): Promise<DocumentDetail> {
